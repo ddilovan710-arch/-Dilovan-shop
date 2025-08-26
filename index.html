@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>💰 نظام محاسبة المتجر</title>
+  <style>
+    body { font-family: "Cairo", sans-serif; margin:0; background:#f5f6fa; direction:rtl; font-size:20px; }
+    header { background:#2c3e50; color:white; padding:25px; text-align:center; font-size:28px; }
+    nav { display:flex; justify-content:center; gap:20px; background:#34495e; padding:15px; flex-wrap:wrap; }
+    nav button { background:#1abc9c; border:none; color:white; padding:20px 40px; border-radius:12px; cursor:pointer; font-size:22px; font-weight:bold; }
+    nav button:hover { background:#16a085; }
+    section { display:none; max-width:1000px; margin:30px auto; background:white; padding:30px; border-radius:15px; box-shadow:0 4px 15px rgba(0,0,0,0.15); font-size:22px; }
+    section.active { display:block; }
+    label { display:block; margin-top:15px; font-weight:bold; font-size:22px; }
+    input,button { margin:8px 0; padding:18px; border-radius:10px; border:1px solid #bbb; width:100%; box-sizing:border-box; font-size:22px; }
+    button.action { background:#3498db; color:white; border:none; width:100%; font-size:24px; font-weight:bold; }
+    button.action:hover { background:#2980b9; }
+    table { width:100%; border-collapse:collapse; margin-top:20px; font-size:20px; }
+    th,td { border:1px solid #ddd; padding:12px; text-align:center; }
+    th { background:#ecf0f1; font-size:22px; }
+
+    /* الكاميرا والإطار */
+    #scanner { display:none; margin:15px auto; width:320px; height:320px; position:relative; border-radius:12px; overflow:hidden; background:#000; }
+    .scan-box{
+      position:absolute; 
+      width:86%; height:32%;
+      left:7%; top:34%;
+      border:3px solid #00e5ff;
+      border-radius:10px;
+      pointer-events:none;
+    }
+    .scan-line{
+      position:absolute; left:8%; width:84%; height:2px; background:#ff3b3b; 
+      box-shadow:0 0 8px #ff3b3b, 0 0 16px #ff3b3b;
+      animation: sweep 1.3s linear infinite;
+    }
+    @keyframes sweep{
+      0%{ top:36%; }
+      100%{ top:64%; }
+    }
+    #lastScan { text-align:center; font-size:24px; margin-top:10px; font-weight:bold; color:#2c3e50; }
+    .btn-sm { padding:10px 20px; font-size:20px; margin:5px; border-radius:8px; cursor:pointer; }
+    .edit { background:#f39c12; color:white; border:none; }
+    .delete { background:#e74c3c; color:white; border:none; }
+  </style>
+</head>
+<body>
+  <header>💰 نظام محاسبة المتجر</header>
+  <nav>
+    <button onclick="showPage('sell')">💵 البيع</button>
+    <button onclick="showPage('products')">🛒 المنتجات</button>
+    <button onclick="showPage('profit')">📈 صافي الربح</button>
+    <button onclick="showPage('history')">📊 السجل</button>
+  </nav>
+
+  <!-- صفحة البيع -->
+  <section id="sell" class="active">
+    <h2>💵 بيع منتج</h2>
+    <label>📦 الباركود</label>
+    <input id="sellBarcode" placeholder="ادخل الباركود">
+    <button class="btn-sm" onclick="startScanner('sell')">📷 مسح باركود</button>
+
+    <label>🔢 الكمية</label>
+    <input id="sellQty" type="number" placeholder="الكمية" value="1">
+
+    <label>💲 سعر البيع</label>
+    <input id="sellPrice" type="number" placeholder="سعر البيع">
+
+    <button class="action" onclick="processTransaction()">✅ تنفيذ البيع</button>
+  </section>
+
+  <!-- صفحة المنتجات -->
+  <section id="products">
+    <h2>🛒 إدارة المنتجات</h2>
+    <label>💲 سعر التكلفة</label>
+    <input id="pprice" type="number" placeholder="سعر التكلفة">
+
+    <label>📦 الباركود</label>
+    <input id="pbarcode" placeholder="الباركود">
+    <button class="btn-sm" onclick="startScanner('product')">📷 مسح باركود</button>
+
+    <label>🔢 الكمية</label>
+    <input id="pstock" type="number" placeholder="الكمية">
+
+    <button class="action" onclick="addOrUpdateProduct()">➕ إضافة / تحديث</button>
+
+    <h2>📋 قائمة المنتجات</h2>
+    <p>💰 القيمة الكلية للبضاعة: <span id="inventoryValue">0</span></p>
+    <table id="productsTable">
+      <thead><tr><th>الباركود</th><th>سعر التكلفة</th><th>المخزون</th><th>خيارات</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- صفحة الربح -->
+  <section id="profit">
+    <h2>📈 صافي الربح</h2>
+    <p>💵 إجمالي المبيعات: <span id="totalSales">0</span></p>
+    <p>📦 إجمالي التكلفة: <span id="totalCost">0</span></p>
+    <p>✅ صافي الربح: <span id="netProfit">0</span></p>
+  </section>
+
+  <!-- صفحة السجل -->
+  <section id="history">
+    <h2>📊 سجل العمليات</h2>
+    <table id="historyTable">
+      <thead><tr><th>النوع</th><th>الباركود</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th><th>التاريخ</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- الكاميرا -->
+  <div id="scanner">
+    <div class="scan-box">
+      <div class="scan-line"></div>
+    </div>
+  </div>
+  <div id="lastScan"></div>
+
+  <audio id="beep" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+
+  <script>
+    let products = JSON.parse(localStorage.getItem("products") || "[]");
+    let transactions = JSON.parse(localStorage.getItem("transactions") || "[]");
+    let scannerMode = null;
+
+    function saveData(){ localStorage.setItem("products", JSON.stringify(products)); localStorage.setItem("transactions", JSON.stringify(transactions)); }
+    function loadProducts(){
+      const tbody=document.querySelector("#productsTable tbody"); tbody.innerHTML=""; let total=0;
+      products.forEach(p=>{
+        tbody.innerHTML+=`<tr><td>${p.barcode}</td><td>${p.price}</td><td>${p.stock}</td>
+        <td><button class="btn-sm edit" onclick="editProduct('${p.barcode}')">✏️ تعديل</button>
+        <button class="btn-sm delete" onclick="deleteProduct('${p.barcode}')">🗑️ حذف</button></td></tr>`;
+        total+=p.price*p.stock;
+      });
+      document.getElementById("inventoryValue").textContent=total.toFixed(2);
+    }
+    function addOrUpdateProduct(){
+      const price=parseFloat(document.getElementById("pprice").value)||0;
+      const barcode=document.getElementById("pbarcode").value.trim();
+      const stock=parseInt(document.getElementById("pstock").value)||0;
+      if(!barcode) return alert("❌ أدخل الباركود");
+      let p=products.find(x=>x.barcode===barcode);
+      if(p){ p.price=price||p.price; p.stock+=stock; } else { products.push({barcode,price,stock}); }
+      saveData(); loadProducts();
+    }
+    function editProduct(b){ let p=products.find(x=>x.barcode===b); if(!p) return; document.getElementById("pbarcode").value=p.barcode; document.getElementById("pprice").value=p.price; document.getElementById("pstock").value=p.stock; showPage("products"); }
+    function deleteProduct(b){ products=products.filter(p=>p.barcode!==b); saveData(); loadProducts(); }
+    function recordTransaction(b,q,pr){ let p=products.find(x=>x.barcode===b)||{price:0}; transactions.push({type:"بيع",barcode:b,qty:q,price:pr,total:pr*q,cost:p.price*q,date:new Date().toLocaleString()}); saveData();}
+    function processTransaction(){ const b=document.getElementById("sellBarcode").value; const q=parseInt(document.getElementById("sellQty").value)||0; const pr=parseFloat(document.getElementById("sellPrice").value)||0; let p=products.find(x=>x.barcode===b); if(!p) return alert("❌ المنتج غير موجود"); if(p.stock<q) return alert("❌ مخزون غير كافي"); p.stock-=q; recordTransaction(b,q,pr); saveData(); loadProducts(); alert("✔ تمت عملية البيع"); }
+    function calcProfit(){ let s=0,c=0; transactions.forEach(t=>{s+=t.price*t.qty;c+=t.cost;}); document.getElementById("totalSales").textContent=s.toFixed(2); document.getElementById("totalCost").textContent=c.toFixed(2); document.getElementById("netProfit").textContent=(s-c).toFixed(2);}
+    function loadHistory(){ const tbody=document.querySelector("#historyTable tbody"); tbody.innerHTML=""; transactions.forEach(t=>{ tbody.innerHTML+=`<tr><td>${t.type}</td><td>${t.barcode}</td><td>${t.qty}</td><td>${t.price}</td><td>${t.total}</td><td>${t.date}</td></tr>`; }); }
+    function showPage(id){ document.querySelectorAll("section").forEach(s=>s.classList.remove("active")); document.getElementById(id).classList.add("active"); if(id==="products") loadProducts(); if(id==="profit") calcProfit(); if(id==="history") loadHistory();}
+    
+    function startScanner(mode){
+      scannerMode=mode; const scanner=document.getElementById("scanner"); scanner.style.display="block"; document.getElementById("lastScan").textContent="📷 جاري المسح...";
+      try{Quagga.stop();}catch(e){}
+      Quagga.init({
+        inputStream:{type:"LiveStream",constraints:{facingMode:"environment",width:{ideal:1280},height:{ideal:720}},target:scanner, area:{top:"34%",right:"7%",left:"7%",bottom:"34%"}},
+        decoder:{readers:["code_128_reader","ean_reader","ean_8_reader","upc_reader","code_39_reader","code_93_reader","i2of5_reader"]},
+        locate:true
+      },err=>{ if(err){console.error(err);return;} Quagga.start(); });
+      Quagga.onDetected(d=>{
+        let code=d.codeResult.code;
+        document.getElementById("beep").play();
+        document.getElementById("lastScan").textContent="✅ آخر باركود: "+code;
+        if(scannerMode==="sell") document.getElementById("sellBarcode").value=code;
+        if(scannerMode==="product") document.getElementById("pbarcode").value=code;
+        Quagga.stop(); scanner.style.display="none";
+      });
+    }
+
+    loadProducts();
+  </script>
+</body>
+</html>
